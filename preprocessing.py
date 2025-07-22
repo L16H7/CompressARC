@@ -1,3 +1,4 @@
+import pdb
 import json
 import numpy as np
 import torch
@@ -109,12 +110,14 @@ class Task:
                     grid = self._create_grid_tensor(
                         example.get(mode, np.zeros(self.shapes[new_example_num][1]))
                     )
+                    # pdb.set_trace()
                     mode_num = 0 if mode == 'input' else 1
                     self.problem[new_example_num, :, :grid.shape[1], :grid.shape[2], mode_num] = grid
 
         self.problem = torch.from_numpy(np.argmax(self.problem, axis=1)).to(torch.get_default_device())
 
     def _create_grid_tensor(self, grid):
+        # pdb.set_trace()
         return np.array([
             [[1 if self.colors.index(color) == ref_color else 0
               for color in row]

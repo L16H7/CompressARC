@@ -1,22 +1,14 @@
 import os
-import sys
 import time
 import json
-import importlib
 import gc
-import multiprocessing
-import tqdm
 import traceback
 
-import numpy as np
 import torch
 
 import preprocessing
 import train
 import arc_compressor
-import initializers
-import multitensor_systems
-import layers
 import solution_selection
 import visualization
 
@@ -43,9 +35,9 @@ def solve_task(task_name, split, time_limit, n_train_iterations, gpu_id, memory_
 
     try:  # Error catching block that puts errors on the error_queue
 
-        torch.set_default_device('cuda')
-        torch.cuda.set_device(gpu_id)
-        torch.cuda.reset_peak_memory_stats()  # Measure the memory used.
+        # torch.set_default_device('cuda')
+        # torch.cuda.set_device(gpu_id)
+        # torch.cuda.reset_peak_memory_stats()  # Measure the memory used.
 
         # Get the task
         with open(f'dataset/arc-agi_{split}_challenges.json', 'r') as f:
@@ -55,14 +47,25 @@ def solve_task(task_name, split, time_limit, n_train_iterations, gpu_id, memory_
 
         # Set up the training
         model = arc_compressor.ARCCompressor(task)
+        # import pdb; pdb.set_trace()  # Debugging breakpoint
         optimizer = torch.optim.Adam(model.weights_list, lr=0.01, betas=(0.5, 0.9))
         train_history_logger = solution_selection.Logger(task)
         train_history_logger.solution_most_frequent = tuple(((0, 0), (0, 0)) for example_num in range(task.n_test))
         train_history_logger.solution_second_most_frequent = tuple(((0, 0), (0, 0)) for example_num in range(task.n_test))
 
+        # Create directory for iteration images
+        os.makedirs(f'plots/{task_name}', exist_ok=True)
+        
         # Training loop
         for train_step in range(n_train_iterations):
             train.take_step(task, model, optimizer, train_step, train_history_logger)
+            
+            # Save attempts as images every 10th iteration
+            if train_step % 50 == 0:
+                fname = f'plots/{task_name}/{task_name}_at_{train_step}_steps.png'
+                visualization.plot_solution(train_history_logger, fname=fname)
+            
+            # pdb.set_trace()
             if time.time() > time_limit:
                 break
 
@@ -83,5 +86,5 @@ def solve_task(task_name, split, time_limit, n_train_iterations, gpu_id, memory_
         memory_dict[task_name] = torch.cuda.max_memory_allocated()
         solutions_dict[task_name] = example_list
 
-    except Exception as e:  # If error, write to the error queue
+    except Exception:  # If error, write to the error queue
         error_queue.put(traceback.format_exc())

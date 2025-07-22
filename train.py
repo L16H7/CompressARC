@@ -1,3 +1,4 @@
+import pdb
 import time
 
 import numpy as np
@@ -48,6 +49,7 @@ def take_step(task, model, optimizer, train_step, train_history_logger):
 
     optimizer.zero_grad()
     logits, x_mask, y_mask, KL_amounts, KL_names, = model.forward()
+    # pdb.set_trace()
     logits = torch.cat([torch.zeros_like(logits[:,:1,:,:]), logits], dim=1)  # add black color to logits
 
     # Compute the total KL loss
