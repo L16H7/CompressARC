@@ -24,8 +24,8 @@ def main():
     
     # Set up parameters
     # task_name = "007bbfb7"  # First task from the training set
-    task_name = "2281f1f4"  # First task from the training set
-    split = "training"  # Use training split since we know the task exists there
+    task_name = "28a6681f"  # First task from the training set
+    split = "evaluation"  # Use training split since we know the task exists there
     time_limit = time.time() + 30000  # 5 minutes from now
     n_train_iterations = 1_000_000 # Small number for testing
     
