@@ -1,3 +1,4 @@
+import pdb
 import numpy as np
 import torch
 
@@ -49,6 +50,7 @@ class ARCCompressor:
         self.decode_weights = initializer.initialize_multilinear([self.decoding_dim, self.channel_dim_fn])
         initializer.symmetrize_xy(self.decode_weights)
         self.target_capacities = initializer.initialize_multizeros([self.decoding_dim])
+        # pdb.set_trace()
 
         self.share_up_weights = []
         self.share_down_weights = []
@@ -114,6 +116,7 @@ class ARCCompressor:
         x, KL_amounts, KL_names = layers.decode_latents(
             self.target_capacities, self.decode_weights, self.multiposteriors
         )
+        pdb.set_trace()
 
         for layer_num in range(self.n_layers):
             # Multitensor communication layer
@@ -151,6 +154,7 @@ class ARCCompressor:
         )
         x_mask = layers.affine(x[[1, 0, 0, 1, 0]], self.mask_weights, use_bias=True)
         y_mask = layers.affine(x[[1, 0, 0, 0, 1]], self.mask_weights, use_bias=True)
+        pdb.set_trace()
 
         # Postprocessing
         x_mask, y_mask = layers.postprocess_mask(self.multitensor_system.task, x_mask, y_mask)

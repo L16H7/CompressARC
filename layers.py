@@ -1,3 +1,4 @@
+import pdb
 import itertools
 
 import numpy as np
@@ -156,6 +157,7 @@ def decode_latents(target_capacities, decode_weights, multiposteriors):
     def decode_latents_(dims, target_capacity, decode_weight, posterior):
         z, KL = channel_layer(target_capacity, posterior)
         x = affine(z, decode_weight, use_bias=True)
+        # pdb.set_trace()
         KL_amounts.append(KL)
         KL_names.append(str(dims))
         return x

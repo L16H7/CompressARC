@@ -1,3 +1,4 @@
+import pdb
 from typing import List, Tuple
 import torch
 import numpy as np
@@ -138,6 +139,7 @@ def decode_latents(posteriors, weights):
     Simplified latent decoding. It's decorated, so it will run on each
     tensor within the `posteriors` and `weights` MultiTensors.
     """
+    pdb.set_trace()
     KL_amounts = {}
 
     @multify
