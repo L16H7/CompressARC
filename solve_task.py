@@ -16,7 +16,7 @@ import visualization
 A script that solves one puzzle, to be imported and used with parallel_train.py and multiprocessing.
 """
 
-def solve_task(task_name, split, time_limit, n_train_iterations, gpu_id, memory_dict, solutions_dict, error_queue):
+def solve_task(task_name, split, time_limit, n_train_iterations, gpu_id, memory_dict, solutions_dict, error_queue, task_file=None):
     """
     Solves a puzzle.
     Args:
@@ -40,10 +40,16 @@ def solve_task(task_name, split, time_limit, n_train_iterations, gpu_id, memory_
         # torch.cuda.reset_peak_memory_stats()  # Measure the memory used.
 
         # Get the task
-        with open(f'dataset/arc-agi_{split}_challenges.json', 'r') as f:
-            problems = json.load(f)
-        task = preprocessing.Task(task_name, problems[task_name], None)
-        del problems
+        task = None
+        if not task_file:
+            with open(f'dataset/arc-agi_{split}_challenges.json', 'r') as f:
+                problems = json.load(f)
+            task = preprocessing.Task(task_name, problems[task_name], None)
+            del problems
+        else:
+            with open(task_file, 'r') as f:
+                problem = json.load(f)
+            task = preprocessing.Task(task_name, problem, None)
 
         # Set up the training
         model = arc_compressor.ARCCompressor(task)

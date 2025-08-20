@@ -116,7 +116,7 @@ class ARCCompressor:
         x, KL_amounts, KL_names = layers.decode_latents(
             self.target_capacities, self.decode_weights, self.multiposteriors
         )
-        pdb.set_trace()
+        # pdb.set_trace()
 
         for layer_num in range(self.n_layers):
             # Multitensor communication layer
@@ -154,7 +154,7 @@ class ARCCompressor:
         )
         x_mask = layers.affine(x[[1, 0, 0, 1, 0]], self.mask_weights, use_bias=True)
         y_mask = layers.affine(x[[1, 0, 0, 0, 1]], self.mask_weights, use_bias=True)
-        pdb.set_trace()
+        # pdb.set_trace()
 
         # Postprocessing
         x_mask, y_mask = layers.postprocess_mask(self.multitensor_system.task, x_mask, y_mask)

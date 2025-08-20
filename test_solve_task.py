@@ -53,7 +53,8 @@ def main():
             gpu_id=gpu_id,
             memory_dict=memory_dict,
             solutions_dict=solutions_dict,
-            error_queue=error_queue
+            error_queue=error_queue,
+            task_file="/Users/light/projects/CompressARC/dataset/arc_puzzle.json"
         )
         
         print("solve_task completed successfully!")
