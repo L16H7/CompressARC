@@ -44,7 +44,7 @@ def save_kl_curves_plot(train_history_logger, task_name, save_dir="plots"):
     filtered_total_kl = total_kl[start_idx:]
     if filtered_total_kl:
         x_range = range(start_idx, start_idx + len(filtered_total_kl))
-        ax1.plot(x_range, filtered_total_kl, label='Total KL', linewidth=2, color='black')
+        # ax1.plot(x_range, filtered_total_kl, label='Total KL', linewidth=2, color='black')
     
     ax1.set_xlabel('Training Iteration')
     ax1.set_ylabel('KL Divergence')
@@ -99,6 +99,15 @@ def solve_task_simplified(
     is not necessary for good performance.
     """
     try:
+        # Reset random seeds for reproducible results
+        import numpy as np
+        import torch
+        np.random.seed(0)
+        torch.manual_seed(0)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(0)
+            torch.cuda.manual_seed_all(0)
+        
         # Get the task (same as original)
         task = None
         if not task_file:
