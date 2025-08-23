@@ -27,7 +27,7 @@ def main():
     # task_name = "28e73c20"  # First task from the training set
     split = "training"  # Use training split since we know the task exists there
     time_limit = time.time() + 30000  # 5 minutes from now
-    n_train_iterations = 1_000_000 # Small number for testing
+    n_train_iterations = 200 # Small number for testing
     
     # Create multiprocessing objects
     manager = multiprocessing.Manager()
@@ -54,7 +54,7 @@ def main():
             memory_dict=memory_dict,
             solutions_dict=solutions_dict,
             error_queue=error_queue,
-            task_file="/Users/light/projects/CompressARC/dataset/arc_puzzle.json"
+            task_file="/Users/light/projects/CompressARC/dataset/simple_connect.json"
         )
         
         print("solve_task completed successfully!")

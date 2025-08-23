@@ -306,6 +306,7 @@ def softmax(dims, x):
         softmax = torch.exp(x-offsets)
         softmax = softmax / torch.sum(softmax, dim=subset, keepdim=True)
         softmaxxes.append(softmax)
+    # pdb.set_trace()
     return torch.cat(softmaxxes, dim=-1)
 
 
