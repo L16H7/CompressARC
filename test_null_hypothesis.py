@@ -19,10 +19,10 @@ def main():
     print()
     
     # Parameters
-    task_name = "007bbfb7"
+    task_name = "272f95fa"
     split = "training"
     time_limit = time.time() + 30000
-    n_train_iterations = 200
+    n_train_iterations = 2000
     gpu_id = 0
     
     # Multiprocessing setup
@@ -46,7 +46,7 @@ def main():
             memory_dict=memory_dict,
             solutions_dict=solutions_dict,
             error_queue=error_queue,
-            task_file="/Users/light/projects/CompressARC/dataset/simple_connect.json"
+            # task_file="/Users/light/projects/CompressARC/dataset/simple_connect.json"
         )
         
         end_time = time.time()

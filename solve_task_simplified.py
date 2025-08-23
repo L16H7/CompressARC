@@ -12,7 +12,7 @@ import torch
 import matplotlib.pyplot as plt
 
 import preprocessing
-import train_simplified  # Use our simplified training module
+import train_actually_simplified  # Use the ACTUALLY simplified training module
 import arc_compressor
 import solution_selection
 import visualization
@@ -100,7 +100,7 @@ def solve_task_simplified(
     """
     try:
         # Reset random seeds for reproducible results
-        seed = 42
+        seed = 0
         import numpy as np
         import torch
         np.random.seed(seed)
@@ -135,10 +135,10 @@ def solve_task_simplified(
         # Create directory for iteration images
         os.makedirs(f"plots/{task_name}", exist_ok=True)
 
-        # Training loop using simplified KL calculation
+        # Training loop using ACTUALLY simplified KL calculation
         for train_step in range(n_train_iterations):
-            # Use simplified training step
-            train_simplified.take_step_simplified(task, model, optimizer, train_step, train_history_logger)
+            # Use ACTUALLY simplified training step
+            train_actually_simplified.take_step_actually_simplified(task, model, optimizer, train_step, train_history_logger)
             
             if train_step % 10 == 0:
                 print(
