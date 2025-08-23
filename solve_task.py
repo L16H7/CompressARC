@@ -115,12 +115,13 @@ def solve_task(
 
     try:  # Error catching block that puts errors on the error_queue
         # Reset random seeds for reproducible results
+        seed = 4
         import numpy as np
-        np.random.seed(0)
-        torch.manual_seed(0)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
         if torch.cuda.is_available():
-            torch.cuda.manual_seed(0)
-            torch.cuda.manual_seed_all(0)
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
         
         # torch.set_default_device('cuda')
         # torch.cuda.set_device(gpu_id)
