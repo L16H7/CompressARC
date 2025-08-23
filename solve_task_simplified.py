@@ -12,7 +12,7 @@ import torch
 import matplotlib.pyplot as plt
 
 import preprocessing
-import train_actually_simplified  # Use the ACTUALLY simplified training module
+import train_null_hypothesis as train_simplified
 import arc_compressor
 import solution_selection
 import visualization
@@ -138,7 +138,7 @@ def solve_task_simplified(
         # Training loop using ACTUALLY simplified KL calculation
         for train_step in range(n_train_iterations):
             # Use ACTUALLY simplified training step
-            train_actually_simplified.take_step_actually_simplified(task, model, optimizer, train_step, train_history_logger)
+            train_simplified.take_step_null_hypothesis(task, model, optimizer, train_step, train_history_logger)
             
             if train_step % 10 == 0:
                 print(

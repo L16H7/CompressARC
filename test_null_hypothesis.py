@@ -19,7 +19,7 @@ def main():
     print()
     
     # Parameters
-    task_name = "272f95fa"
+    task_name = "ded97339"
     split = "training"
     time_limit = time.time() + 30000
     n_train_iterations = 2000

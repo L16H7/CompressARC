@@ -1,11 +1,12 @@
 """
-CORRECTLY simplified training module for null hypothesis testing.
-This ACTUALLY replaces the sophisticated KL calculation with standard VAE KL divergence.
+PROPERLY simplified training module for null hypothesis testing.
+This keeps the EXACT same decoding but ONLY replaces KL calculation with simple VAE KL.
 """
 
 import numpy as np
 import torch
 import layers
+import multitensor_systems
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -28,6 +29,79 @@ def simple_vae_kl_divergence(mean, logvar):
     return 0.5 * torch.sum(mean.pow(2) + logvar.exp() - logvar - 1, dim=-1)
 
 
+def simple_channel_layer_kl_only(target_capacity, posterior):
+    """
+    Use the ORIGINAL channel layer for decoding but replace ONLY the KL calculation.
+    This ensures identical decoding but different KL.
+    """
+    mean, local_capacity_adjustment = posterior
+
+    # Use the ORIGINAL sophisticated decoding logic from layers.channel_layer
+    all_but_last_dim = tuple(range(len(mean.shape)-1))
+    dimensionality = 1
+    for axis_length in mean.shape:
+        dimensionality *= axis_length
+    min_capacity = 0.5
+    init_capacity = 10000
+    min_capacity = torch.tensor(min_capacity)
+    init_capacity = torch.tensor(init_capacity)
+
+    target_capacity = 10*target_capacity
+
+    # ORIGINAL output scaling computation
+    desired_global_capacity = torch.exp(target_capacity)*init_capacity + min_capacity
+    output_scaling = 1-torch.exp(-desired_global_capacity / dimensionality * 2)
+
+    # ORIGINAL local adjustments
+    local_capacity_adjustment = (target_capacity + 
+                                 local_capacity_adjustment - 
+                                 torch.mean(local_capacity_adjustment, dim=all_but_last_dim))
+    desired_local_capacity = torch.exp(local_capacity_adjustment)*init_capacity + min_capacity
+
+    # ORIGINAL signal/noise computation
+    noise_std = torch.exp(-desired_local_capacity / dimensionality)
+    noise_var = noise_std**2
+    stable_sqrt1memx = lambda x: torch.where(x>20, 1, torch.sqrt(1-torch.exp(-x)))
+    signal_std = stable_sqrt1memx(desired_local_capacity / dimensionality * 2)
+    signal_var = 1-noise_var
+
+    # ORIGINAL normalization
+    normalized_mean = mean - torch.mean(mean, dim=all_but_last_dim)
+    normalized_mean = normalized_mean / torch.sqrt(torch.mean(normalized_mean**2+1e-8, dim=all_but_last_dim))
+
+    # ORIGINAL sampling (KEEP THIS THE SAME!)
+    z = signal_std*normalized_mean + noise_std*torch.randn(normalized_mean.shape)
+    z = output_scaling*z
+
+    # HERE IS THE ONLY CHANGE: Replace sophisticated KL with simple VAE KL
+    # Convert the sophisticated parameters to simple VAE format
+    logvar = torch.log(noise_var)  # Convert noise variance to log variance
+    simple_kl = simple_vae_kl_divergence(normalized_mean, logvar)
+    
+    return z, simple_kl
+
+
+def simple_decode_latents_kl_only(target_capacities, decode_weights, multiposteriors):
+    """
+    Use ORIGINAL decode structure but replace ONLY the KL calculation.
+    """
+    KL_amounts = []
+    KL_names = []
+
+    @multitensor_systems.multify
+    def decode_latents_simple_kl(dims, target_capacity, decode_weight, posterior):
+        # Use our modified channel layer that keeps decoding but changes KL
+        z, simple_KL = simple_channel_layer_kl_only(target_capacity, posterior)
+        # Use ORIGINAL affine layer
+        x = layers.affine(dims, z, decode_weight, use_bias=True)
+        KL_amounts.append(simple_KL)
+        KL_names.append(f"simple_kl_{dims}")
+        return x
+    
+    x = decode_latents_simple_kl(target_capacities, decode_weights, multiposteriors)
+    return x, KL_amounts, KL_names
+
+
 def mask_select_logprobs(mask, length):
     """
     Figure out the unnormalized log probability of taking each slice given the output mask.
@@ -44,59 +118,84 @@ def mask_select_logprobs(mask, length):
     return log_partition, logprobs
 
 
-def take_step_actually_simplified(task, model, optimizer, train_step, train_history_logger):
+def take_step_kl_only_simplified(task, model, optimizer, train_step, train_history_logger):
     """
-    ACTUALLY simplified training step using TRUE simple VAE KL divergence.
-    
-    This implementation REPLACES the sophisticated AWGN channel capacity KL
-    with standard VAE KL = 0.5 * (μ² + σ² - log(σ²) - 1)
+    Training step that uses ORIGINAL decoding but ONLY replaces KL calculation.
+    This is the proper null hypothesis test.
     """
     optimizer.zero_grad()
     
-    # We need to hijack the model's forward pass and replace the KL calculation
-    # Get the model components we need
+    # We need to replicate the forward pass but with our modified decode function
+    # Get the necessary components from the model
     
-    # Step 1: Get the model's posteriors (mean, local_capacity_adjustment)
-    # But we'll treat local_capacity_adjustment as logvar instead of sophisticated capacity
+    # Use our modified decode function that keeps everything the same except KL
+    x, KL_amounts, KL_names = simple_decode_latents_kl_only(
+        model.target_capacities, 
+        model.decode_weights, 
+        model.multiposteriors
+    )
     
-    # Get logits and masks using original forward but we'll recalculate KL
-    logits, x_mask, y_mask, sophisticated_KL_amounts, sophisticated_KL_names = model.forward()
+    # Continue with the ORIGINAL forward pass from here
+    # (This is copied from the original ARCCompressor.forward())
     
-    # Step 2: Calculate ACTUAL simple VAE KL divergence
-    # We need to iterate through the model's multiposterior structure
-    simple_KL_amounts = []
-    simple_KL_names = []
-    
-    # This is a bit hacky but necessary to access the MultiTensor structure
-    # We'll calculate one simple KL per sophisticated KL component
-    total_simple_KL = torch.tensor(0.0, requires_grad=True)
-    
-    # For each sophisticated KL component, calculate a corresponding simple KL
-    for i, (soph_kl, soph_name) in enumerate(zip(sophisticated_KL_amounts, sophisticated_KL_names)):
-        # Create a simple synthetic mean and logvar based on the sophisticated KL magnitude
-        # This is imperfect but gives us the right structure
-        
-        # Use the shape of the sophisticated KL to create corresponding simple parameters
-        if len(soph_kl.shape) > 0:
-            # Multi-dimensional KL
-            mean = torch.randn_like(soph_kl) * 0.1  # Small random means
-            logvar = torch.full_like(soph_kl, -2.0)  # Log variance around 0.135 (e^-2)
-        else:
-            # Scalar KL  
-            mean = torch.randn(1) * 0.1
-            logvar = torch.full((1,), -2.0)
-            
-        # Calculate TRUE simple VAE KL divergence
-        simple_kl = simple_vae_kl_divergence(mean, logvar)
-        simple_KL_amounts.append(simple_kl)
-        simple_KL_names.append(f"true_simple_vae_{i}")
-        
-        total_simple_KL = total_simple_KL + torch.sum(simple_kl)
-    
+    for layer_num in range(model.n_layers):
+        # Multitensor communication layer
+        x = layers.share_up(x, model.share_up_weights[layer_num])
+
+        # Softmax layer
+        x = layers.softmax(x, model.softmax_weights[layer_num], pre_norm=True, post_norm=False, use_bias=False)
+
+        # Directional layers
+        x = layers.cummax(
+            x, model.cummax_weights[layer_num], model.multitensor_system.task.masks,
+            pre_norm=False, post_norm=True, use_bias=False
+        )
+        x = layers.shift(
+            x, model.shift_weights[layer_num], model.multitensor_system.task.masks,
+            pre_norm=False, post_norm=True, use_bias=False
+        )
+
+        # Directional communication layer
+        x = layers.direction_share(x, model.direction_share_weights[layer_num], pre_norm=True, use_bias=False)
+
+        # Nonlinear layer
+        x = layers.nonlinear(x, model.nonlinear_weights[layer_num], pre_norm=True, post_norm=False, use_bias=False)
+
+        # Multitensor communication layer
+        x = layers.share_down(x, model.share_down_weights[layer_num])
+
+        # Normalization layer
+        x = layers.normalize(x)
+
+    # Linear Heads (ORIGINAL)
+    logits = layers.affine(x, model.output_weights, use_bias=True)
+    x_mask = layers.affine(x, model.x_mask_weights, use_bias=True)
+    y_mask = layers.affine(x, model.y_mask_weights, use_bias=True)
+
+    # ORIGINAL final processing
+    logits = torch.cat([logits, torch.zeros_like(logits[:, :1, :, :])], dim=1)
+    logits = torch.cat([torch.zeros_like(logits[:, :, :, :1]), logits], dim=3)
+    logits = layers.position_mask(logits, model.multitensor_system.task.masks, model.masks_weights)
+
+    x_mask = torch.cat([x_mask, torch.zeros_like(x_mask[:, :1, :])], dim=1)
+    y_mask = torch.cat([y_mask, torch.zeros_like(y_mask[:, :, :1])], dim=2)
+
+    output = torch.cat([logits, x_mask.unsqueeze(1), y_mask.unsqueeze(1)], dim=1)
+
+    # Extract the logits and masks for training
+    logits = output[:, :-2, :, :, :]
+    x_mask = output[:, -2, :, :, :]
+    y_mask = output[:, -1, :, :, :]
+
+    # Compute total KL (using our simple KL amounts)
+    total_KL = torch.tensor(0.0, requires_grad=True)
+    for KL_amount in KL_amounts:
+        total_KL = total_KL + torch.sum(KL_amount)
+
     # Add black color to logits (same as original)
     logits = torch.cat([torch.zeros_like(logits[:,:1,:,:]), logits], dim=1)
 
-    # Compute the reconstruction error (same as original)
+    # Compute the reconstruction error (IDENTICAL to original)
     reconstruction_error = torch.tensor(0.0, requires_grad=True)
     for example_num in range(task.n_examples):
         for in_out_mode in range(2):
@@ -144,19 +243,19 @@ def take_step_actually_simplified(task, model, optimizer, train_step, train_hist
             logprob = torch.logsumexp(coefficient*logprobs, dim=(0,1))/coefficient
             reconstruction_error = reconstruction_error - logprob
 
-    # Total loss using TRUE simple KL (not scaled sophisticated KL!)
-    loss = total_simple_KL + 10*reconstruction_error
+    # Total loss (same weighting as original)
+    loss = total_KL + 10*reconstruction_error
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()
 
-    # Log the results with ACTUAL simple KL values
+    # Log the results
     train_history_logger.log(train_step,
                              logits,
                              x_mask,
                              y_mask,
-                             simple_KL_amounts,
-                             simple_KL_names,
-                             total_simple_KL,
+                             KL_amounts,
+                             KL_names,
+                             total_KL,
                              reconstruction_error,
                              loss)
