@@ -131,6 +131,80 @@ def channel_layer(target_capacity, posterior):
     KL = 0.5*(noise_var + signal_var*normalized_mean**2 - 1) + desired_local_capacity/dimensionality
     return z, KL
 
+def channel_layer_simple_kl(target_capacity, posterior):
+    """
+    A version of channel_layer with a more standard, explicit KL calculation.
+    This helps to illustrate the standard components versus the reparameterization
+    used in the original `channel_layer` function.
+
+    Assume that z comes from some prior distribution, measure the KL divergence to the
+    posterior, and give a sample z from the posterior.
+    Args:
+        target_capacity (Tensor): Rough attempted KL capacity (reparameterized).
+        posterior (tuple[Tensor]): Consists of mean and local_capacity_adjustment. mean
+                parameterizes the mean of the posterior, and local_capacity_adjustment
+                gives the attempted KL capacity to use for each element in the tensor, in
+                log space.
+    """
+    mean, local_capacity_adjustment = posterior
+
+    all_but_last_dim = tuple(range(len(mean.shape)-1))
+    dimensionality = 1  # figure out how many elements there are in the tensor
+    for axis_length in mean.shape:
+        dimensionality *= axis_length
+    min_capacity = 0.5
+    init_capacity = 10000
+    min_capacity = torch.tensor(min_capacity)
+    init_capacity = torch.tensor(init_capacity)
+
+    target_capacity = 10*target_capacity  # this reparameterization is for faster learning
+
+    # Compute some rudimentary post-scaling of z. This output scaling leaks a bit of information that isn't
+    # measured by the KL, but luckily the scaling parameter is one-dimensional and probably doesn't have
+    # that much information in it.
+    # The output is scaled by the sigmoid of a signal-to-noise ratio, where the signal-to-noise ratio is the one
+    # that an AWGN channel would use to achieve a channel capacity equal to the desired_global_capacity below.
+    # A numerically stable formula for the sigmoid of this signal-to-noise ratio is used to compute output_scaling.
+    desired_global_capacity = torch.exp(target_capacity)*init_capacity + min_capacity
+    output_scaling = 1-torch.exp(-desired_global_capacity / dimensionality * 2)
+
+    # We make local adjustments to the desired_global_capacity in order to allow different elements to have
+    # different variances.
+    local_capacity_adjustment = (target_capacity + 
+                                 local_capacity_adjustment - 
+                                 torch.mean(local_capacity_adjustment, dim=all_but_last_dim))
+    desired_local_capacity = torch.exp(local_capacity_adjustment)*init_capacity + min_capacity
+
+    # Figure out what signal-to-noise ratio is required to achieve desired_local_capacity, and compute how much
+    # signal and how much noise for them to sum to one. Numerically stable formulae for these are used below.
+    noise_std = torch.exp(-desired_local_capacity / dimensionality)
+    noise_var = noise_std**2
+    stable_sqrt1memx = lambda x: torch.where(x>20, 1, torch.sqrt(1-torch.exp(-x)))
+    signal_std = stable_sqrt1memx(desired_local_capacity / dimensionality * 2)
+    signal_var = 1-noise_var
+
+    # Don't actually send a signal of variance equal to signal. Instead, normalize the means tensor and send that instead.
+    normalized_mean = mean - torch.mean(mean, dim=all_but_last_dim)
+    normalized_mean = normalized_mean / torch.sqrt(torch.mean(normalized_mean**2+1e-8, dim=all_but_last_dim))
+
+    # Now we can have a sample of z.
+    z = signal_std*normalized_mean + noise_std*torch.randn(normalized_mean.shape)
+    z = output_scaling*z
+
+    # Standard KL divergence for a Gaussian posterior q(z|x) = N(μ, σ²) and a
+    # standard normal prior p(z) = N(0, 1) is:
+    # KL(q||p) = 0.5 * (μ² + σ² - log(σ²) - 1)
+    # Here, μ = signal_std * normalized_mean and σ² = noise_var.
+    # The original implementation reparameterizes the log(σ²) term.
+    # This version calculates it directly for clarity.
+    mu_squared = signal_var * normalized_mean**2
+    sigma_squared = noise_var
+    # Add a small epsilon for numerical stability to prevent log(0) -> -inf.
+    log_sigma_squared = torch.log(sigma_squared + 1e-10)
+
+    KL = 0.5 * (mu_squared + sigma_squared - log_sigma_squared - 1)
+    return z, KL
+
 def decode_latents(target_capacities, decode_weights, multiposteriors):
     """
     Decode the latents z, and give the KL loss for the VAE-like setup. Break the KL down into
@@ -155,7 +229,7 @@ def decode_latents(target_capacities, decode_weights, multiposteriors):
 
     @multitensor_systems.multify
     def decode_latents_(dims, target_capacity, decode_weight, posterior):
-        z, KL = channel_layer(target_capacity, posterior)
+        z, KL = channel_layer_simple_kl(target_capacity, posterior)
         x = affine(z, decode_weight, use_bias=True)
         # pdb.set_trace()
         KL_amounts.append(KL)
