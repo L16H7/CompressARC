@@ -1,3 +1,4 @@
+import pdb
 import time
 
 import numpy as np
@@ -47,7 +48,8 @@ def take_step(task, model, optimizer, train_step, train_history_logger):
     """
 
     optimizer.zero_grad()
-    logits, x_mask, y_mask, KL_amounts, KL_names, = model.forward()
+    logits, x_mask, y_mask, color_stats, KL_amounts, KL_names = model.forward()
+    # pdb.set_trace()
     logits = torch.cat([torch.zeros_like(logits[:,:1,:,:]), logits], dim=1)  # add black color to logits
 
     # Compute the total KL loss
@@ -103,6 +105,17 @@ def take_step(task, model, optimizer, train_step, train_history_logger):
             logprob = torch.logsumexp(coefficient*logprobs, dim=(0,1))/coefficient  # Aggregate for all possible grid sizes
             reconstruction_error = reconstruction_error - logprob
 
+    # Compute color statistics loss
+    color_stats_loss = torch.nn.functional.l1_loss(color_stats[:-1, ...], task.color_stats[:-1, ...])
+    test_input_color_stats_loss = torch.nn.functional.l1_loss(color_stats[-1, ..., 0], task.color_stats[-1, ..., 0])
+    color_stats_loss = color_stats_loss + test_input_color_stats_loss
+    # print("Color stats loss:", color_stats_loss)
+    # pdb.set_trace()
+    # if color_stats_loss < 0.01:
+    #     pdb.set_trace()
+    # pdb.set_trace()
+    
+    # Add color stats loss to total loss with appropriate weighting
     loss = total_KL + 10*reconstruction_error
     loss.backward()
     optimizer.step()

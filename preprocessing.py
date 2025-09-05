@@ -1,3 +1,4 @@
+import pdb
 import json
 import numpy as np
 import torch
@@ -28,6 +29,8 @@ class Task:
         self.solution = self._create_solution_tensor(solution) if solution else None
         if solution is None:
             self.solution_hash = None
+
+        self._get_color_stats_ground_truth()
 
     def _collect_problem_shapes(self, problem):
         """
@@ -109,12 +112,14 @@ class Task:
                     grid = self._create_grid_tensor(
                         example.get(mode, np.zeros(self.shapes[new_example_num][1]))
                     )
+                    # pdb.set_trace()
                     mode_num = 0 if mode == 'input' else 1
                     self.problem[new_example_num, :, :grid.shape[1], :grid.shape[2], mode_num] = grid
 
         self.problem = torch.from_numpy(np.argmax(self.problem, axis=1)).to(torch.get_default_device())
 
     def _create_grid_tensor(self, grid):
+        # pdb.set_trace()
         return np.array([
             [[1 if self.colors.index(color) == ref_color else 0
               for color in row]
@@ -155,6 +160,26 @@ class Task:
 
         self.masks = torch.from_numpy(self.masks).to(torch.get_default_dtype()).to(torch.get_default_device())
 
+    def _get_color_stats_ground_truth(self):
+        self.color_stats = torch.zeros((self.n_examples, self.n_colors, 2))
+        
+        for example_num in range(self.n_examples):
+            color_counts = torch.zeros(self.n_colors)
+            
+            for mode_idx in [0, 1]:
+                # Get the active region using masks
+                active_mask = self.masks[example_num, :, :, mode_idx]
+                grid = self.problem[example_num, :, :, mode_idx]
+                
+                # Count colors only in active regions
+                active_pixels = grid[active_mask.bool()]
+                total_pixels = active_pixels.numel()
+                
+                # Count each color except black (color 0)
+                for color_idx in range(1, self.n_colors + 1):
+                    color_counts[color_idx - 1] = (active_pixels == color_idx).sum().float()
+
+                self.color_stats[example_num, :, mode_idx] = color_counts / total_pixels
 
 def preprocess_tasks(split, task_nums_or_task_names):
     """

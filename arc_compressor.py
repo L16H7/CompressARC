@@ -1,3 +1,4 @@
+import pdb
 import numpy as np
 import torch
 
@@ -8,7 +9,7 @@ import layers
 np.random.seed(0)
 torch.manual_seed(0)
 torch.set_default_dtype(torch.float32)
-torch.set_default_device('cuda')
+# torch.set_default_device('cuda')
 
 
 class ARCCompressor:
@@ -49,6 +50,7 @@ class ARCCompressor:
         self.decode_weights = initializer.initialize_multilinear([self.decoding_dim, self.channel_dim_fn])
         initializer.symmetrize_xy(self.decode_weights)
         self.target_capacities = initializer.initialize_multizeros([self.decoding_dim])
+        # pdb.set_trace()
 
         self.share_up_weights = []
         self.share_down_weights = []
@@ -71,6 +73,11 @@ class ARCCompressor:
         self.head_weights = initializer.initialize_head()
         self.mask_weights = initializer.initialize_linear(
             [1, 0, 0, 1, 0], [self.channel_dim_fn([1, 0, 0, 1, 0]), 2]
+        )
+        
+        # Add color statistics weights - predict color counts for entire puzzle
+        self.color_stats_weights = initializer.initialize_linear(
+            [1, 1, 0, 0, 0], [self.channel_dim_fn([1, 1, 0, 0, 0]), 2]
         )
 
         # Symmetrize weights so that their behavior is equivariant to swapping x and y dimension ordering
@@ -114,6 +121,7 @@ class ARCCompressor:
         x, KL_amounts, KL_names = layers.decode_latents(
             self.target_capacities, self.decode_weights, self.multiposteriors
         )
+        # pdb.set_trace()
 
         for layer_num in range(self.n_layers):
             # Multitensor communication layer
@@ -151,9 +159,13 @@ class ARCCompressor:
         )
         x_mask = layers.affine(x[[1, 0, 0, 1, 0]], self.mask_weights, use_bias=True)
         y_mask = layers.affine(x[[1, 0, 0, 0, 1]], self.mask_weights, use_bias=True)
-
+        
+        # Color statistics prediction - use color-specific representations
+        color_stats = layers.affine(x[[1, 1, 0, 0, 0]], self.color_stats_weights, use_bias=True)
+        
         # Postprocessing
         x_mask, y_mask = layers.postprocess_mask(self.multitensor_system.task, x_mask, y_mask)
+        # pdb.set_trace()
 
-        return output, x_mask, y_mask, KL_amounts, KL_names
+        return output, x_mask, y_mask, color_stats, KL_amounts, KL_names
 
