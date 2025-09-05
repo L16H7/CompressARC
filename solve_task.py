@@ -22,14 +22,14 @@ A script that solves one puzzle, to be imported and used with parallel_train.py 
 def save_kl_curves_plot(train_history_logger, task_name, save_dir="plots"):
     """
     Save the KL curves from training as a plot.
-    
+
     Args:
         train_history_logger: Logger object containing KL_curves data
         task_name: Name of the task for file naming
         save_dir: Directory to save the plot (default: "plots")
     """
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
-    
+
     # Find the starting point where total KL drops below 1000
     total_kl = train_history_logger.total_KL_curve
     start_idx = 0
@@ -37,52 +37,70 @@ def save_kl_curves_plot(train_history_logger, task_name, save_dir="plots"):
         if kl_val < 1000:
             start_idx = i
             break
-    
+
+    allowed_kl_components = [
+        "[0, 1, 0, 0, 0]",
+        "[1, 1, 0, 0, 0]",
+        "[0, 0, 1, 0, 0]",
+        "[1, 0, 1, 0, 0]",
+        "[1, 0, 0, 1, 0]",
+        "[1, 0, 0, 0, 1]",
+    ]
     # Top subplot: KL curves (filtered)
     for component_name, values in train_history_logger.KL_curves.items():
         filtered_values = values[start_idx:]
         if filtered_values:  # Only plot if there are values after filtering
             x_range = range(start_idx, start_idx + len(filtered_values))
-            ax1.plot(x_range, filtered_values, label=f'KL {component_name}', alpha=0.7)
-    
+
+            if component_name in allowed_kl_components:
+                ax1.plot(x_range, filtered_values, label=f"KL {component_name}", alpha=0.7)
+
     # Plot total KL curve (filtered)
     filtered_total_kl = total_kl[start_idx:]
     if filtered_total_kl:
         x_range = range(start_idx, start_idx + len(filtered_total_kl))
         # ax1.plot(x_range, filtered_total_kl, label='Total KL', linewidth=2, color='black')
-    
-    ax1.set_xlabel('Training Iteration')
-    ax1.set_ylabel('KL Divergence')
-    ax1.set_title(f'KL Curves for Task: {task_name} (Values < 1000)')
+
+    ax1.set_xlabel("Training Iteration")
+    ax1.set_ylabel("KL Divergence")
+    ax1.set_title(f"KL Curves for Task: {task_name} (Values < 1000)")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
-    
+
     # Bottom subplot: Loss and reconstruction error (also filtered from same start point)
     filtered_loss = train_history_logger.loss_curve[start_idx:]
     filtered_recon_error = train_history_logger.reconstruction_error_curve[start_idx:]
-    
+
     if filtered_loss:
         x_range = range(start_idx, start_idx + len(filtered_loss))
-        ax2.plot(x_range, filtered_loss, label='Total Loss', color='red', linewidth=2)
-    
+        ax2.plot(x_range, filtered_loss, label="Total Loss", color="red", linewidth=2)
+
     if filtered_recon_error:
         x_range = range(start_idx, start_idx + len(filtered_recon_error))
-        ax2.plot(x_range, filtered_recon_error, label='Reconstruction Error', color='blue', linewidth=2)
-    
-    ax2.set_xlabel('Training Iteration')
-    ax2.set_ylabel('Loss / Error')
-    ax2.set_title(f'Training Progress for Task: {task_name} (From iteration {start_idx})')
+        ax2.plot(
+            x_range,
+            filtered_recon_error,
+            label="Reconstruction Error",
+            color="blue",
+            linewidth=2,
+        )
+
+    ax2.set_xlabel("Training Iteration")
+    ax2.set_ylabel("Loss / Error")
+    ax2.set_title(
+        f"Training Progress for Task: {task_name} (From iteration {start_idx})"
+    )
     ax2.legend()
     ax2.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
-    
+
     # Save the plot
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"{task_name}_training_curves.png")
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
-    
+
     print(f"Training curves plot saved to: {save_path}")
 
 
@@ -157,8 +175,8 @@ def solve_task(
                 )
                 # pdb.set_trace()
 
-                for key, value in train_history_logger.KL_curves.items():
-                    print(f"  {key}: {value[-1]}")
+                # for key, value in train_history_logger.KL_curves.items():
+                # print(f"  {key}: {value[-1]}")
 
             # Save attempts as images every 10th iteration
             if train_step % 50 == 0:

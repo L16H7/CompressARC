@@ -30,6 +30,8 @@ class Task:
         if solution is None:
             self.solution_hash = None
 
+        self._get_color_stats_ground_truth()
+
     def _collect_problem_shapes(self, problem):
         """
         Extract input/output shapes for each example.
@@ -158,6 +160,26 @@ class Task:
 
         self.masks = torch.from_numpy(self.masks).to(torch.get_default_dtype()).to(torch.get_default_device())
 
+    def _get_color_stats_ground_truth(self):
+        self.color_stats = torch.zeros((self.n_examples, self.n_colors, 2))
+        
+        for example_num in range(self.n_examples):
+            color_counts = torch.zeros(self.n_colors)
+            
+            for mode_idx in [0, 1]:
+                # Get the active region using masks
+                active_mask = self.masks[example_num, :, :, mode_idx]
+                grid = self.problem[example_num, :, :, mode_idx]
+                
+                # Count colors only in active regions
+                active_pixels = grid[active_mask.bool()]
+                total_pixels = active_pixels.numel()
+                
+                # Count each color except black (color 0)
+                for color_idx in range(1, self.n_colors + 1):
+                    color_counts[color_idx - 1] = (active_pixels == color_idx).sum().float()
+
+                self.color_stats[example_num, :, mode_idx] = color_counts / total_pixels
 
 def preprocess_tasks(split, task_nums_or_task_names):
     """

@@ -74,6 +74,11 @@ class ARCCompressor:
         self.mask_weights = initializer.initialize_linear(
             [1, 0, 0, 1, 0], [self.channel_dim_fn([1, 0, 0, 1, 0]), 2]
         )
+        
+        # Add color statistics weights - predict color counts for entire puzzle
+        self.color_stats_weights = initializer.initialize_linear(
+            [1, 1, 0, 0, 0], [self.channel_dim_fn([1, 1, 0, 0, 0]), 2]
+        )
 
         # Symmetrize weights so that their behavior is equivariant to swapping x and y dimension ordering
         for weight_list in [
@@ -154,10 +159,13 @@ class ARCCompressor:
         )
         x_mask = layers.affine(x[[1, 0, 0, 1, 0]], self.mask_weights, use_bias=True)
         y_mask = layers.affine(x[[1, 0, 0, 0, 1]], self.mask_weights, use_bias=True)
-        # pdb.set_trace()
-
+        
+        # Color statistics prediction - use color-specific representations
+        color_stats = layers.affine(x[[1, 1, 0, 0, 0]], self.color_stats_weights, use_bias=True)
+        
         # Postprocessing
         x_mask, y_mask = layers.postprocess_mask(self.multitensor_system.task, x_mask, y_mask)
+        # pdb.set_trace()
 
-        return output, x_mask, y_mask, KL_amounts, KL_names
+        return output, x_mask, y_mask, color_stats, KL_amounts, KL_names
 

@@ -48,7 +48,7 @@ def take_step(task, model, optimizer, train_step, train_history_logger):
     """
 
     optimizer.zero_grad()
-    logits, x_mask, y_mask, KL_amounts, KL_names, = model.forward()
+    logits, x_mask, y_mask, color_stats, KL_amounts, KL_names = model.forward()
     # pdb.set_trace()
     logits = torch.cat([torch.zeros_like(logits[:,:1,:,:]), logits], dim=1)  # add black color to logits
 
@@ -105,7 +105,14 @@ def take_step(task, model, optimizer, train_step, train_history_logger):
             logprob = torch.logsumexp(coefficient*logprobs, dim=(0,1))/coefficient  # Aggregate for all possible grid sizes
             reconstruction_error = reconstruction_error - logprob
 
-    loss = total_KL + 10*reconstruction_error
+    # Compute color statistics loss
+    color_stats_loss = torch.nn.functional.l1_loss(color_stats[:-1, ...], task.color_stats[:-1, ...])
+    test_input_color_stats_loss = torch.nn.functional.l1_loss(color_stats[-1, ..., 0], task.color_stats[-1, ..., 0])
+    color_stats_loss = color_stats_loss + test_input_color_stats_loss
+    # pdb.set_trace()
+    
+    # Add color stats loss to total loss with appropriate weighting
+    loss = total_KL + 10*reconstruction_error + 100*color_stats_loss
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()
