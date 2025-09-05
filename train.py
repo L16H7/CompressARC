@@ -109,10 +109,14 @@ def take_step(task, model, optimizer, train_step, train_history_logger):
     color_stats_loss = torch.nn.functional.l1_loss(color_stats[:-1, ...], task.color_stats[:-1, ...])
     test_input_color_stats_loss = torch.nn.functional.l1_loss(color_stats[-1, ..., 0], task.color_stats[-1, ..., 0])
     color_stats_loss = color_stats_loss + test_input_color_stats_loss
+    # print("Color stats loss:", color_stats_loss)
+    # pdb.set_trace()
+    # if color_stats_loss < 0.01:
+    #     pdb.set_trace()
     # pdb.set_trace()
     
     # Add color stats loss to total loss with appropriate weighting
-    loss = total_KL + 10*reconstruction_error + 100*color_stats_loss
+    loss = total_KL + 10*reconstruction_error
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()

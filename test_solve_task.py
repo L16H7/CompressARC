@@ -23,11 +23,11 @@ def main():
         print(f"Using GPU {gpu_id}")
     
     # Set up parameters
-    task_name = "007bbfb7"  # First task from the training set
-    # task_name = "28e73c20"  # First task from the training set
+    # task_name = "007bbfb7"  # First task from the training set
+    task_name = "simple_duplicate"  # A simple custom task for testing
     split = "training"  # Use training split since we know the task exists there
-    time_limit = time.time() + 30000  # 5 minutes from now
-    n_train_iterations = 200 # Small number for testing
+    time_limit = time.time() + 30000
+    n_train_iterations = 2000 # Small number for testing
     
     # Create multiprocessing objects
     manager = multiprocessing.Manager()
@@ -54,7 +54,7 @@ def main():
             memory_dict=memory_dict,
             solutions_dict=solutions_dict,
             error_queue=error_queue,
-            task_file="/Users/light/projects/CompressARC/dataset/simple_connect.json"
+            task_file="/Users/light/projects/CompressARC/dataset/simple_duplicate.json"
         )
         
         print("solve_task completed successfully!")
